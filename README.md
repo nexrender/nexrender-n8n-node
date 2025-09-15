@@ -1,48 +1,102 @@
 ![Banner image](https://user-images.githubusercontent.com/10284570/173569848-c624317f-42b1-45a6-ab09-f0ea3c247648.png)
 
-# n8n-nodes-starter
+# n8n-nodes-nexrender
 
-This repo contains example nodes to help you get started building your own custom integrations for [n8n](https://n8n.io). It includes the node linter and other dependencies.
+This is an n8n community node. It lets you use the Nexrender Cloud API in your n8n workflows to manage templates, render jobs, fonts, and secrets.
 
-To make your custom node available to the community, you must create it as an npm package, and [submit it to the npm registry](https://docs.npmjs.com/packages-and-modules/contributing-packages-to-the-registry).
+Nexrender is a cloud rendering platform for Adobe After Effects projects, providing API-based control for template upload, job creation, asset injection, and more.
 
-If you would like your node to be available on n8n cloud you can also [submit your node for verification](https://docs.n8n.io/integrations/creating-nodes/deploy/submit-community-nodes/).
+[n8n](https://n8n.io/) is a [fair-code licensed](https://docs.n8n.io/reference/license/) workflow automation platform.
 
-## Prerequisites
+[Installation](#installation)  
+[Operations](#operations)  
+[Credentials](#credentials)  
+[Compatibility](#compatibility)  
+[Usage](#usage)  
+[Resources](#resources)  
+[Version history](#version-history)
 
-You need the following installed on your development machine:
+## Installation
 
-* [git](https://git-scm.com/downloads)
-* Node.js and npm. Minimum version Node 20. You can find instructions on how to install both using nvm (Node Version Manager) for Linux, Mac, and WSL [here](https://github.com/nvm-sh/nvm). For Windows users, refer to Microsoft's guide to [Install NodeJS on Windows](https://docs.microsoft.com/en-us/windows/dev-environment/javascript/nodejs-on-windows).
-* Install n8n with:
-  ```
-  npm install n8n -g
-  ```
-* Recommended: follow n8n's guide to [set up your development environment](https://docs.n8n.io/integrations/creating-nodes/build/node-development-environment/).
+Follow the official guide to install community nodes in n8n:
 
-## Using this starter
+https://docs.n8n.io/integrations/community-nodes/installation/
 
-These are the basic steps for working with the starter. For detailed guidance on creating and publishing nodes, refer to the [documentation](https://docs.n8n.io/integrations/creating-nodes/).
+Package name: `n8n-nodes-nexrender-cloud`
 
-1. [Generate a new repository](https://github.com/n8n-io/n8n-nodes-starter/generate) from this template repository.
-2. Clone your new repo:
-   ```
-   git clone https://github.com/<your organization>/<your-repo-name>.git
-   ```
-3. Run `npm i` to install dependencies.
-4. Open the project in your editor.
-5. Browse the examples in `/nodes` and `/credentials`. Modify the examples, or replace them with your own nodes.
-6. Update the `package.json` to match your details.
-7. Run `npm run lint` to check for errors or `npm run lintfix` to automatically fix errors when possible.
-8. Test your node locally. Refer to [Run your node locally](https://docs.n8n.io/integrations/creating-nodes/test/run-node-locally/) for guidance.
-9. Replace this README with documentation for your node. Use the [README_TEMPLATE](README_TEMPLATE.md) to get started.
-10. Update the LICENSE file to use your details.
-11. [Publish](https://docs.npmjs.com/packages-and-modules/contributing-packages-to-the-registry) your package to npm.
+## Operations
 
-## More information
+The node exposes the following resources and operations:
 
-Refer to our [documentation on creating nodes](https://docs.n8n.io/integrations/creating-nodes/) for detailed information on building your own nodes.
+- Template
+  - Create: POST /templates — register a template and get upload info
+  - List: GET /templates — list templates for your team
+  - Get: GET /templates/{id} — get template details
+  - Update: PATCH /templates/{id} — update display name
+  - Delete: DELETE /templates/{id} — delete a template
+  - Get Download URL: GET /templates/{id}/upload — presigned URL to download the raw file
+  - Get Upload URL: PUT /templates/{id}/upload — fresh presigned upload URL
 
-## License
+- Job
+  - Create: POST /jobs — create a render job with template, assets, settings, upload + webhook
+  - List: GET /jobs — supports filters: minimal, from, limit, from_date, to_date, states, exclude_states, sort, tags
+  - Get: GET /jobs/{id} — job details, progress, stats, output URL
 
-[MIT](https://github.com/n8n-io/n8n-nodes-starter/blob/master/LICENSE.md)
+- Font
+  - Upload: POST /fonts — upload a TTF font (multipart/form-data)
+  - List: GET /fonts — list fonts
+  - Get: GET /fonts/{id} — get font metadata
+  - Delete: DELETE /fonts/{id} — delete a font
+
+- Secret
+  - List: GET /secrets — list secrets (values not returned)
+  - Create: PUT /secrets — create/update secret (name + value)
+  - Delete: DELETE /secrets/{id} — delete a secret
+
+## Credentials
+
+Credential: “Nexrender API”
+
+- API Token (required): Bearer token used to authenticate. You can generate a token in the Nexrender app: https://app.nexrender.com/team/settings
+- Base URL (optional): Defaults to `https://api.nexrender.com/api/v2`. Override for on-prem environments.
+
+## Compatibility
+
+- Node.js: >= 20 (per package engines)
+- n8n: built with Nodes API v1
+
+## Usage
+
+1) Add the Nexrender node to your workflow and select a Resource and Operation.
+
+2) Set up “Nexrender API” credentials with your team API token.
+
+3) Typical flows:
+
+- Upload a new template
+  - Operation: Template → Create (returns upload info)
+  - Use the returned upload info to upload your file (via HTTP Request or custom logic)
+
+- Render a job
+  - Operation: Job → Create
+  - Provide the Job body including `template.id`, `assets`, optional `settings`, `webhook` and `upload` configuration
+
+- Monitor a job
+  - Operation: Job → Get with `jobId`, or use Job → List with filters
+
+- Manage fonts
+  - Operation: Font → Upload (multipart/form-data with TTF)
+  - Then reference fonts by file name in your job payload if needed
+
+Notes:
+- The Font upload endpoint expects multipart/form-data. If you need binary support sourced from a previous node, consider using an HTTP Request node for the upload step.
+
+## Resources
+
+- n8n community nodes docs: https://docs.n8n.io/integrations/#community-nodes
+- Nexrender Cloud product site: https://nexrender.com/
+- Generate an API token: https://app.nexrender.com/team/settings
+
+## Version history
+
+- 0.1.0 — Initial release: Templates, Jobs, Fonts, Secrets operations

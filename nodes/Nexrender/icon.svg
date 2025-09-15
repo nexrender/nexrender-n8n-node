@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="256px" height="256px" viewBox="0 0 256 256" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>nx-text-logo-dark copy 2</title>
+    <defs>
+        <linearGradient x1="96.8540564%" y1="0.553326102%" x2="24.1540439%" y2="90.3570108%" id="linearGradient-1">
+            <stop stop-color="#D3C1DE" offset="0%"></stop>
+            <stop stop-color="#BDA6CC" offset="100%"></stop>
+        </linearGradient>
+    </defs>
+    <g id="nx-text-logo-dark-copy-2" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <circle id="Mask" fill="#EEEEEE" cx="128" cy="128" r="128"></circle>
+        <path d="M187.332789,68.4740455 L255.526352,139.088841 C250.13196,201.952147 199.301442,251.837309 136.026709,255.752414 L67.203042,184.481993 L187.332789,68.4740455 Z" id="Path" fill="url(#linearGradient-1)"></path>
+        <rect id="Rectangle" fill="#A06BC6" x="66" y="66" width="125" height="125" rx="10"></rect>
+    </g>
+</svg>
+
