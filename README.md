@@ -41,6 +41,7 @@ The node exposes the following resources and operations:
   - Create: POST /jobs — create a render job with template, assets, settings, upload + webhook
   - List: GET /jobs — supports filters: minimal, from, limit, from_date, to_date, states, exclude_states, sort, tags
   - Get: GET /jobs/{id} — job details, progress, stats, output URL
+  - Wait For Job (separate node): polls a job ID until status is finished or error
 
 - Font
   - Upload: POST /fonts — upload a TTF font (multipart/form-data)
@@ -80,6 +81,7 @@ Credential: “Nexrender API”
 - Render a job
   - Operation: Job → Create
   - Provide the Job body including `template.id`, `assets`, optional `settings`, `webhook` and `upload` configuration
+  - Optionally add “Nexrender: Wait For Job” node after Create to block until completion
 
 - Monitor a job
   - Operation: Job → Get with `jobId`, or use Job → List with filters

@@ -36,7 +36,8 @@
       "dist/credentials/NexrenderApi.credentials.js"
     ],
     "nodes": [
-      "dist/nodes/Nexrender/Nexrender.node.js"
+      "dist/nodes/Nexrender/Nexrender.node.js",
+      "dist/nodes/Nexrender/NexrenderWaitForJob.node.js"
     ]
   },
   "devDependencies": {
