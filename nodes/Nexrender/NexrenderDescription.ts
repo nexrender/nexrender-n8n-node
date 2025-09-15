@@ -272,6 +272,49 @@ const jobFields: INodeProperties[] = [
         required: true,
     },
     {
+        displayName: 'Wait Until Finished/Error',
+        name: 'waitUntilDone',
+        type: 'boolean',
+        default: false,
+    description: 'Whether to poll the job status until it is finished or error',
+        displayOptions: {
+            show: {
+                resource: ['job'],
+                operation: ['get'],
+            },
+        },
+    },
+    {
+        displayName: 'Poll Interval (Seconds)',
+        name: 'pollIntervalSeconds',
+        type: 'number',
+        typeOptions: { minValue: 1 },
+        default: 5,
+        description: 'Time between status checks',
+        displayOptions: {
+            show: {
+                resource: ['job'],
+                operation: ['get'],
+                waitUntilDone: [true],
+            },
+        },
+    },
+    {
+        displayName: 'Timeout (Minutes)',
+        name: 'timeoutMinutes',
+        type: 'number',
+        typeOptions: { minValue: 1 },
+        default: 30,
+        description: 'Maximum time to wait before failing',
+        displayOptions: {
+            show: {
+                resource: ['job'],
+                operation: ['get'],
+                waitUntilDone: [true],
+            },
+        },
+    },
+    {
         displayName: 'Body',
         name: 'body',
         type: 'json',
