@@ -17,7 +17,7 @@ export const nexrenderOperations: INodeProperties[] = [
                 value: 'create',
                 description: 'Create a new template',
                 action: 'Create template',
-                routing: { request: { method: 'POST', url: '/templates' } },
+                routing: { request: { method: 'POST', url: '/templates', json: true, body: '={{typeof($parameter["body"]) === "string" ? JSON.parse($parameter["body"]) : $parameter["body"]}}' } },
             },
             {
                 name: 'Delete',
@@ -59,7 +59,7 @@ export const nexrenderOperations: INodeProperties[] = [
                 value: 'update',
                 description: 'Update a template',
                 action: 'Update template',
-                routing: { request: { method: 'PATCH', url: '=/templates/{{$parameter["templateId"]}}' } },
+                routing: { request: { method: 'PATCH', url: '=/templates/{{$parameter["templateId"]}}', json: true, body: '={{typeof($parameter["body"]) === "string" ? JSON.parse($parameter["body"]) : $parameter["body"]}}' } },
             },
         ],
         default: 'list',
@@ -80,12 +80,7 @@ export const nexrenderOperations: INodeProperties[] = [
                 value: 'create',
                 description: 'Create a new job',
                 action: 'Create job',
-                routing: {
-                    request: {
-                        method: 'POST',
-                        url: '/jobs',
-                    },
-                },
+                routing: { request: { method: 'POST', url: '/jobs', json: true, body: '={{typeof($parameter["body"]) === "string" ? JSON.parse($parameter["body"]) : $parameter["body"]}}' } },
             },
             {
                 name: 'List',
@@ -208,6 +203,8 @@ export const nexrenderOperations: INodeProperties[] = [
                     request: {
                         method: 'PUT',
                         url: '/secrets',
+                        json: true,
+                        body: '={{ ({ name: $parameter["name"], value: $parameter["value"] }) }}',
                     },
                 },
             },
@@ -255,12 +252,7 @@ const templateFields: INodeProperties[] = [
                 operation: ['create', 'update'],
             },
         },
-        routing: {
-            send: {
-                property: 'body',
-                type: 'body',
-            },
-        },
+        // routing via operation's request.body binding
     },
 ];
 
@@ -283,7 +275,7 @@ const jobFields: INodeProperties[] = [
         displayName: 'Body',
         name: 'body',
         type: 'json',
-        default: '{"template":{"id":"TEMPLATE_ULID"}}',
+        default: '',
         description: 'Job creation payload',
         displayOptions: {
             show: {
@@ -291,12 +283,7 @@ const jobFields: INodeProperties[] = [
                 operation: ['create'],
             },
         },
-        routing: {
-            send: {
-                property: 'body',
-                type: 'body',
-            },
-        },
+        // routing via operation's request.body binding
     },
     {
         displayName: 'Query Parameters',
@@ -349,7 +336,7 @@ const fontFields: INodeProperties[] = [
         name: 'familyName',
         type: 'string',
         default: '',
-        description: 'Optional font family name override',
+        description: 'Optional font family name override (multipart field)',
         displayOptions: {
             show: {
                 resource: ['font'],
@@ -358,11 +345,11 @@ const fontFields: INodeProperties[] = [
         },
     },
     {
-        displayName: 'Font File',
+        displayName: 'Font',
         name: 'font',
         type: 'string',
         default: '',
-        description: 'Binary data reference or URL to TTF font',
+        description: 'Path or URL to TTF font. For multipart upload, consider using HTTP Request node.',
         displayOptions: {
             show: {
                 resource: ['font'],
@@ -370,10 +357,7 @@ const fontFields: INodeProperties[] = [
             },
         },
         routing: {
-            send: {
-                property: 'font',
-                type: 'body',
-            },
+            send: { property: 'font', type: 'body' },
         },
     },
 ];
@@ -396,7 +380,6 @@ const secretFields: INodeProperties[] = [
         default: '',
         description: 'Secret name/key',
         displayOptions: { show: { resource: ['secret'], operation: ['create'] } },
-        routing: { send: { property: 'name', type: 'body' } },
         required: true,
     },
     {
@@ -407,7 +390,6 @@ const secretFields: INodeProperties[] = [
         default: '',
         description: 'Secret value',
         displayOptions: { show: { resource: ['secret'], operation: ['create'] } },
-        routing: { send: { property: 'value', type: 'body' } },
         required: true,
     },
 ];
