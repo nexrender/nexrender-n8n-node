@@ -1,10 +1,12 @@
 ![Banner image](https://user-images.githubusercontent.com/10284570/173569848-c624317f-42b1-45a6-ab09-f0ea3c247648.png)
 
-# n8n-nodes-nexrender
+# n8n-nodes-nexrender-cloud
 
 This is an n8n community node. It lets you use the Nexrender Cloud API in your n8n workflows to manage templates, render jobs, fonts, and secrets.
 
 Nexrender is a cloud rendering platform for Adobe After Effects projects, providing API-based control for template upload, job creation, asset injection, and more.
+
+Note that this node requires an active subscription with [Nexrender Cloud](https://nexrender.com/). Get your trial [today](https://www.nexrender.com/contact)!
 
 [n8n](https://n8n.io/) is a [fair-code licensed](https://docs.n8n.io/reference/license/) workflow automation platform.
 
@@ -89,9 +91,6 @@ Credential: “Nexrender API”
 - Manage fonts
   - Operation: Font → Upload (multipart/form-data with TTF)
   - Then reference fonts by file name in your job payload if needed
-
-Notes:
-- The Font upload endpoint expects multipart/form-data. If you need binary support sourced from a previous node, consider using an HTTP Request node for the upload step.
 
 ## Resources
 
