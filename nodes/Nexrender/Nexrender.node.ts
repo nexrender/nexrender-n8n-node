@@ -45,6 +45,36 @@ export class Nexrender implements INodeType {
         const items = this.getInputData();
         const results: INodeExecutionData[] = [];
 
+        // Extract a concise API error message, preferring a returned `error` field when present
+        const getApiErrorMessage = (err: unknown): string => {
+            const e: any = err as any;
+            const safeParse = (s: string) => {
+                try { return JSON.parse(s); } catch { return undefined; }
+            };
+            const fromBody = (body: unknown) => {
+                if (!body) return undefined;
+                const obj = typeof body === 'string' ? safeParse(body) ?? { message: body } : body;
+                if (obj && typeof obj === 'object') {
+                    const msg = (obj as any).error || (obj as any).message || (obj as any).detail;
+                    if (typeof msg === 'string' && msg.trim().length) return msg;
+                    try { return JSON.stringify(obj); } catch { /* noop */ }
+                }
+                return undefined;
+            };
+
+            const status = e?.statusCode ?? e?.status ?? e?.response?.status ?? e?.cause?.response?.status;
+            const bodies = [
+                e?.response?.data,
+                e?.response?.body,
+                e?.error,
+                e?.cause?.response?.data,
+                e?.cause?.response?.body,
+            ];
+            let msg = bodies.map(fromBody).find((m) => typeof m === 'string');
+            if (!msg) msg = e?.message || 'Request failed';
+            return status ? `HTTP ${status}: ${msg}` : String(msg);
+        };
+
         for (let i = 0; i < items.length; i++) {
             const resource = this.getNodeParameter('resource', i) as string;
             const operation = this.getNodeParameter('operation', i) as string;
@@ -230,7 +260,41 @@ export class Nexrender implements INodeType {
                         continue;
                     }
                     if (operation === 'upload') {
-                        throw new NodeOperationError(this.getNode(), 'Font upload is not yet supported in this node. Use the HTTP Request node to POST multipart/form-data to /fonts.', { itemIndex: i });
+                        // Multipart/form-data upload using binary data from previous nodes
+                        const binaryPropertyName = this.getNodeParameter('binaryPropertyName', i) as string;
+                        const familyName = this.getNodeParameter('familyName', i, '') as string;
+
+                        const item = items[i];
+                        if (!item.binary || !item.binary[binaryPropertyName]) {
+                            throw new NodeOperationError(this.getNode(), `No binary data found under property '${binaryPropertyName}'`, { itemIndex: i });
+                        }
+                        const binaryData = item.binary[binaryPropertyName]!;
+
+                        // Prepare form-data: field 'font' is the file; optional 'familyName'
+                        const formData: any = {
+                            font: {
+                                value: await this.helpers.getBinaryDataBuffer(i, binaryPropertyName),
+                                options: {
+                                    filename: binaryData.fileName || 'font.ttf',
+                                    contentType: binaryData.mimeType || 'application/octet-stream',
+                                },
+                            },
+                        };
+                        if (familyName) formData.familyName = familyName;
+
+												try {
+													const resp = await this.helpers.requestWithAuthentication.call(this, 'nexrenderApi', {
+															method: 'POST',
+															url: '/fonts',
+															baseURL,
+															formData,
+															headers: { Accept: 'application/json' },
+													} as any);
+													results.push({ json: typeof resp === 'string' ? { success: true, ...JSON.parse(resp) } : resp });
+													continue;
+												} catch (error) {
+													throw new NodeOperationError(this.getNode(), error, { itemIndex: i });
+												}
                     }
                 }
 
@@ -263,10 +327,11 @@ export class Nexrender implements INodeType {
 
                 throw new NodeOperationError(this.getNode(), `Operation not implemented: ${resource}.${operation}`, { itemIndex: i });
             } catch (error) {
+                const message = getApiErrorMessage(error);
                 if (this.continueOnFail()) {
-                    results.push({ json: { error: (error as Error).message }, pairedItem: i });
+                    results.push({ json: { error: message }, pairedItem: i });
                 } else {
-                    throw new NodeOperationError(this.getNode(), error, { itemIndex: i });
+                    throw new NodeOperationError(this.getNode(), message, { itemIndex: i });
                 }
             }
         }

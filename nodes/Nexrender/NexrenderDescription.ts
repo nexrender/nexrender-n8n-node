@@ -375,6 +375,21 @@ const fontFields: INodeProperties[] = [
         required: true,
     },
     {
+        displayName: 'Binary Property',
+        name: 'binaryPropertyName',
+        type: 'string',
+        default: 'data',
+        placeholder: 'data',
+        description: 'Name of the binary property that contains the font file (e.g. from a previous node)',
+        displayOptions: {
+            show: {
+                resource: ['font'],
+                operation: ['upload'],
+            },
+        },
+        required: true,
+    },
+    {
         displayName: 'Family Name',
         name: 'familyName',
         type: 'string',
@@ -385,22 +400,6 @@ const fontFields: INodeProperties[] = [
                 resource: ['font'],
                 operation: ['upload'],
             },
-        },
-    },
-    {
-        displayName: 'Font',
-        name: 'font',
-        type: 'string',
-        default: '',
-        description: 'Path or URL to TTF font. For multipart upload, consider using HTTP Request node.',
-        displayOptions: {
-            show: {
-                resource: ['font'],
-                operation: ['upload'],
-            },
-        },
-        routing: {
-            send: { property: 'font', type: 'body' },
         },
     },
 ];
