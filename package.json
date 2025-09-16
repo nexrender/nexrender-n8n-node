@@ -7,6 +7,7 @@
   ],
   "license": "MIT",
   "homepage": "",
+  "private": false,
   "author": {
     "name": "Dominik Madarasz",
     "email": "dominik@nexrender.com"
