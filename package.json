@@ -1,6 +1,6 @@
 {
   "name": "@nexrender/n8n-nodes-nexrender",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Interact with nexrender API to manage rendering jobs.",
   "keywords": [
     "n8n-community-node-package"
@@ -14,7 +14,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/nexrender/nexrender-n8n-node.git"
+    "url": "git+https://github.com/nexrender/nexrender-n8n-node.git"
   },
   "engines": {
     "node": ">=20.15"
