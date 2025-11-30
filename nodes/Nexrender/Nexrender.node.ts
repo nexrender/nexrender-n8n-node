@@ -1,5 +1,5 @@
 import type { IExecuteFunctions, INodeExecutionData, INodeType, INodeTypeDescription } from 'n8n-workflow';
-import { NodeConnectionType, NodeOperationError } from 'n8n-workflow';
+import { NodeConnectionType, NodeOperationError, sleep } from 'n8n-workflow';
 import { nexrenderFields, nexrenderOperations } from './NexrenderDescription';
 
 const log = (string: string) => {
@@ -141,7 +141,7 @@ export class Nexrender implements INodeType {
                             throw new NodeOperationError(this.getNode(), `Timed out waiting for job ${jobId} after ${timeoutMinutes} minutes`, { itemIndex: i });
                         }
 
-                        await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+                        await sleep(pollIntervalMs);
                     }
 
                     results.push({ json: last });
