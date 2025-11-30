@@ -3,7 +3,7 @@ import { NodeConnectionType, NodeOperationError } from 'n8n-workflow';
 import { nexrenderFields, nexrenderOperations } from './NexrenderDescription';
 
 const log = (string: string) => {
-	process.stdout.write(`${string}\n`);
+	//process.stdout.write(`${string}\n`);
 };
 
 export class Nexrender implements INodeType {
@@ -141,7 +141,7 @@ export class Nexrender implements INodeType {
                             throw new NodeOperationError(this.getNode(), `Timed out waiting for job ${jobId} after ${timeoutMinutes} minutes`, { itemIndex: i });
                         }
 
-                        await new Promise((resolve) => (globalThis as any).setTimeout(resolve, pollIntervalMs));
+                        await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
                     }
 
                     results.push({ json: last });
