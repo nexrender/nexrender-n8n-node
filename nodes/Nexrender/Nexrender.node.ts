@@ -2,10 +2,6 @@ import type { IExecuteFunctions, INodeExecutionData, INodeType, INodeTypeDescrip
 import { NodeConnectionType, NodeOperationError, sleep } from 'n8n-workflow';
 import { nexrenderFields, nexrenderOperations } from './NexrenderDescription';
 
-const log = (string: string) => {
-	//process.stdout.write(`${string}\n`);
-};
-
 export class Nexrender implements INodeType {
     description: INodeTypeDescription = {
         displayName: 'Nexrender',
@@ -27,14 +23,7 @@ export class Nexrender implements INodeType {
                 required: true,
             },
         ],
-        requestDefaults: {
-            baseURL: '={{$credentials.domain}}',
-            url: '',
-            headers: {
-                Accept: 'application/json',
-                'Content-Type': 'application/json',
-            },
-        },
+
         properties: [
             ...nexrenderOperations,
             ...nexrenderFields,
@@ -81,12 +70,6 @@ export class Nexrender implements INodeType {
             const creds = (await this.getCredentials('nexrenderApi')) as { domain?: string } | null;
             const baseURL = (creds?.domain as string) || 'https://api.nexrender.com/api/v2';
 
-            // Lightweight debug logging to help trace execution without changing behavior
-            try {
-                log(
-                    `[Nexrender] item ${i}: resource=${resource} operation=${operation} baseURL=${baseURL}`,
-                );
-            } catch {}
 
             try {
                 if (resource === 'job' && operation === 'get') {
@@ -95,11 +78,6 @@ export class Nexrender implements INodeType {
 
                     if (!waitUntilDone) {
                         // Single GET passthrough using credentials
-                        try {
-                            log(
-                                `[Nexrender] item ${i}: GET job id=${jobId}`,
-                            );
-                        } catch {}
                         const body = await this.helpers.httpRequestWithAuthentication.call(this, 'nexrenderApi', {
                             method: 'GET',
                             url: `/jobs/${jobId}`,
@@ -107,7 +85,7 @@ export class Nexrender implements INodeType {
                             headers: { Accept: 'application/json' },
                             json: true,
                         });
-                        results.push({ json: body });
+                            results.push({ json: body, pairedItem: { item: i } });
                         continue;
                     }
 
@@ -144,7 +122,7 @@ export class Nexrender implements INodeType {
                         await sleep(pollIntervalMs);
                     }
 
-                    results.push({ json: last });
+                        results.push({ json: last, pairedItem: { item: i } });
                     continue;
                 }
 
@@ -160,7 +138,7 @@ export class Nexrender implements INodeType {
                         body: payload,
                         headers: { Accept: 'application/json' },
                     });
-                    results.push({ json: body });
+                        results.push({ json: body, pairedItem: { item: i } });
                     continue;
                 }
 
@@ -176,7 +154,7 @@ export class Nexrender implements INodeType {
                         json: true,
                         headers: { Accept: 'application/json' },
                     });
-                    results.push({ json: body });
+                        results.push({ json: body, pairedItem: { item: i } });
                     continue;
                 }
 
@@ -192,14 +170,14 @@ export class Nexrender implements INodeType {
                             body: payload,
                             headers: { Accept: 'application/json' },
                         });
-                        results.push({ json: resp });
+                            results.push({ json: resp, pairedItem: { item: i } });
                         continue;
                     }
                     if (operation === 'list') {
                         const resp = await this.helpers.httpRequestWithAuthentication.call(this, 'nexrenderApi', {
                             method: 'GET', url: '/templates', baseURL, json: true, headers: { Accept: 'application/json' },
                         });
-                        results.push({ json: resp });
+                            results.push({ json: resp, pairedItem: { item: i } });
                         continue;
                     }
                     const templateId = this.getNodeParameter('templateId', i, '') as string;
@@ -207,14 +185,14 @@ export class Nexrender implements INodeType {
                         const resp = await this.helpers.httpRequestWithAuthentication.call(this, 'nexrenderApi', {
                             method: 'GET', url: `/templates/${templateId}`, baseURL, json: true, headers: { Accept: 'application/json' },
                         });
-                        results.push({ json: resp });
+                            results.push({ json: resp, pairedItem: { item: i } });
                         continue;
                     }
                     if (operation === 'delete') {
                         const resp = await this.helpers.httpRequestWithAuthentication.call(this, 'nexrenderApi', {
                             method: 'DELETE', url: `/templates/${templateId}`, baseURL, json: true, headers: { Accept: 'application/json' },
                         });
-                        results.push({ json: resp ?? { success: true } });
+                            results.push({ json: resp ?? { success: true }, pairedItem: { item: i } });
                         continue;
                     }
                     if (operation === 'update') {
@@ -223,21 +201,21 @@ export class Nexrender implements INodeType {
                         const resp = await this.helpers.httpRequestWithAuthentication.call(this, 'nexrenderApi', {
                             method: 'PATCH', url: `/templates/${templateId}`, baseURL, json: true, body: payload, headers: { Accept: 'application/json' },
                         });
-                        results.push({ json: resp });
+                            results.push({ json: resp, pairedItem: { item: i } });
                         continue;
                     }
                     if (operation === 'getDownloadUrl') {
                         const resp = await this.helpers.httpRequestWithAuthentication.call(this, 'nexrenderApi', {
                             method: 'GET', url: `/templates/${templateId}/upload`, baseURL, json: true, headers: { Accept: 'application/json' },
                         });
-                        results.push({ json: resp });
+                            results.push({ json: resp, pairedItem: { item: i } });
                         continue;
                     }
                     if (operation === 'getUploadUrl') {
                         const resp = await this.helpers.httpRequestWithAuthentication.call(this, 'nexrenderApi', {
                             method: 'PUT', url: `/templates/${templateId}/upload`, baseURL, json: true, headers: { Accept: 'application/json' },
                         });
-                        results.push({ json: resp });
+                            results.push({ json: resp, pairedItem: { item: i } });
                         continue;
                     }
                 }
@@ -247,7 +225,7 @@ export class Nexrender implements INodeType {
                         const resp = await this.helpers.httpRequestWithAuthentication.call(this, 'nexrenderApi', {
                             method: 'GET', url: '/fonts', baseURL, json: true, headers: { Accept: 'application/json' },
                         });
-                        results.push({ json: resp });
+                            results.push({ json: resp, pairedItem: { item: i } });
                         continue;
                     }
                     if (operation === 'get' || operation === 'delete') {
@@ -256,7 +234,7 @@ export class Nexrender implements INodeType {
                         const resp = await this.helpers.httpRequestWithAuthentication.call(this, 'nexrenderApi', {
                             method, url: `/fonts/${fontId}`, baseURL, json: true, headers: { Accept: 'application/json' },
                         });
-                        results.push({ json: resp ?? { success: true } });
+                            results.push({ json: resp ?? { success: true }, pairedItem: { item: i } });
                         continue;
                     }
                     if (operation === 'upload') {
@@ -290,7 +268,7 @@ export class Nexrender implements INodeType {
 															formData,
 															headers: { Accept: 'application/json' },
 													} as any);
-													results.push({ json: typeof resp === 'string' ? { success: true, ...JSON.parse(resp) } : resp });
+                                results.push({ json: typeof resp === 'string' ? { success: true, ...JSON.parse(resp) } : resp, pairedItem: { item: i } });
 													continue;
 												} catch (error) {
 													throw new NodeOperationError(this.getNode(), error, { itemIndex: i });
@@ -303,7 +281,7 @@ export class Nexrender implements INodeType {
                         const resp = await this.helpers.httpRequestWithAuthentication.call(this, 'nexrenderApi', {
                             method: 'GET', url: '/secrets', baseURL, json: true, headers: { Accept: 'application/json' },
                         });
-                        results.push({ json: resp });
+                            results.push({ json: resp, pairedItem: { item: i } });
                         continue;
                     }
                     if (operation === 'create') {
@@ -312,7 +290,7 @@ export class Nexrender implements INodeType {
                         const resp = await this.helpers.httpRequestWithAuthentication.call(this, 'nexrenderApi', {
                             method: 'PUT', url: '/secrets', baseURL, json: true, body: { name, value }, headers: { Accept: 'application/json' },
                         });
-                        results.push({ json: resp ?? { success: true } });
+                            results.push({ json: resp ?? { success: true }, pairedItem: { item: i } });
                         continue;
                     }
                     if (operation === 'delete') {
@@ -320,7 +298,7 @@ export class Nexrender implements INodeType {
                         const resp = await this.helpers.httpRequestWithAuthentication.call(this, 'nexrenderApi', {
                             method: 'DELETE', url: `/secrets/${secretId}`, baseURL, json: true, headers: { Accept: 'application/json' },
                         });
-                        results.push({ json: resp ?? { success: true } });
+                            results.push({ json: resp ?? { success: true }, pairedItem: { item: i } });
                         continue;
                     }
                 }
@@ -329,7 +307,7 @@ export class Nexrender implements INodeType {
             } catch (error) {
                 const message = getApiErrorMessage(error);
                 if (this.continueOnFail()) {
-                    results.push({ json: { error: message }, pairedItem: i });
+                        results.push({ json: { error: message }, pairedItem: { item: i } });
                 } else {
                     throw new NodeOperationError(this.getNode(), message, { itemIndex: i });
                 }
