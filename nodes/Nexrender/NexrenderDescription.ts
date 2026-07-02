@@ -41,6 +41,13 @@ export const nexrenderOperations: INodeProperties[] = [
 
             },
             {
+                name: 'Get Metadata',
+                value: 'getMetadata',
+                description: 'Get lightweight template metadata by ID',
+                action: 'Get template metadata',
+
+            },
+            {
                 name: 'Get Upload URL',
                 value: 'getUploadUrl',
                 description: 'Get a fresh upload URL for the template file',
@@ -48,10 +55,31 @@ export const nexrenderOperations: INodeProperties[] = [
 
             },
             {
-                name: 'List',
+                name: 'List (Deprecated)',
                 value: 'list',
-                description: 'List templates',
+                description: 'Deprecated: list templates with embedded project data',
                 action: 'List templates',
+
+            },
+            {
+                name: 'List Compositions',
+                value: 'listCompositions',
+                description: 'List discovered compositions for a template',
+                action: 'List template compositions',
+
+            },
+            {
+                name: 'List Layers',
+                value: 'listLayers',
+                description: 'List discovered layers for a template',
+                action: 'List template layers',
+
+            },
+            {
+                name: 'List Metadata',
+                value: 'listMetadata',
+                description: 'List lightweight template metadata',
+                action: 'List template metadata',
 
             },
             {
@@ -76,22 +104,40 @@ export const nexrenderOperations: INodeProperties[] = [
         },
         options: [
             {
+                name: 'Cancel',
+                value: 'cancel',
+                description: 'Cancel a queued or pending job',
+                action: 'Cancel job',
+            },
+            {
+                name: 'Cancel Many',
+                value: 'cancelMany',
+                description: 'Cancel multiple queued or pending jobs',
+                action: 'Cancel many jobs',
+            },
+            {
                 name: 'Create',
                 value: 'create',
                 description: 'Create a new job',
                 action: 'Create job',
             },
             {
-                name: 'List',
-                value: 'list',
-                description: 'List jobs',
-                action: 'List jobs',
+                name: 'Create Join Job',
+                value: 'join',
+                description: 'Create a join or stitch job',
+                action: 'Create join job',
             },
             {
                 name: 'Get',
                 value: 'get',
                 description: 'Get a job by ID',
                 action: 'Get job',
+            },
+            {
+                name: 'List',
+                value: 'list',
+                description: 'List jobs',
+                action: 'List jobs',
             },
         ],
         default: 'list',
@@ -166,6 +212,38 @@ export const nexrenderOperations: INodeProperties[] = [
         ],
         default: 'list',
     },
+    {
+        displayName: 'Operation',
+        name: 'operation',
+        type: 'options',
+        noDataExpression: true,
+        displayOptions: {
+            show: {
+                resource: ['batch'],
+            },
+        },
+        options: [
+            {
+                name: 'Cancel',
+                value: 'cancel',
+                description: 'Cancel all cancellable jobs in a batch',
+                action: 'Cancel batch',
+            },
+            {
+                name: 'Create',
+                value: 'create',
+                description: 'Create a batch of jobs',
+                action: 'Create batch',
+            },
+            {
+                name: 'Get',
+                value: 'get',
+                description: 'Get batch status and jobs',
+                action: 'Get batch',
+            },
+        ],
+        default: 'get',
+    },
 ];
 
 const templateFields: INodeProperties[] = [
@@ -178,7 +256,7 @@ const templateFields: INodeProperties[] = [
         displayOptions: {
             show: {
                 resource: ['template'],
-                operation: ['get', 'delete', 'update', 'getDownloadUrl', 'getUploadUrl'],
+                operation: ['get', 'delete', 'update', 'getDownloadUrl', 'getUploadUrl', 'getMetadata', 'listCompositions', 'listLayers'],
             },
         },
         required: true,
@@ -199,6 +277,37 @@ const templateFields: INodeProperties[] = [
     },
 ];
 
+const templatePaginationFields: INodeProperties[] = [
+    {
+        displayName: 'Limit',
+        name: 'limit',
+        type: 'number',
+        typeOptions: { minValue: 1 },
+        default: 50,
+        description: 'Max number of results to return',
+        displayOptions: {
+            show: {
+                resource: ['template'],
+                operation: ['listCompositions', 'listLayers'],
+            },
+        },
+    },
+    {
+        displayName: 'Offset',
+        name: 'offset',
+        type: 'number',
+        typeOptions: { minValue: 0 },
+        default: 0,
+        description: 'Number of items to skip before returning results',
+        displayOptions: {
+            show: {
+                resource: ['template'],
+                operation: ['listCompositions', 'listLayers'],
+            },
+        },
+    },
+];
+
 const jobFields: INodeProperties[] = [
     {
         displayName: 'ID',
@@ -209,7 +318,7 @@ const jobFields: INodeProperties[] = [
         displayOptions: {
             show: {
                 resource: ['job'],
-                operation: ['get'],
+                operation: ['get', 'cancel'],
             },
         },
         required: true,
@@ -272,6 +381,32 @@ const jobFields: INodeProperties[] = [
         // routing via operation's request.body binding
     },
     {
+        displayName: 'Body',
+        name: 'body',
+        type: 'json',
+        default: '{"jobs":["01ARZ3NDEKTSV4RRFFQ69G5FAV"]}',
+        description: 'Job cancellation payload',
+        displayOptions: {
+            show: {
+                resource: ['job'],
+                operation: ['cancelMany'],
+            },
+        },
+    },
+    {
+        displayName: 'Body',
+        name: 'body',
+        type: 'json',
+        default: '{"assets":[{"type":"video","src":"https://example.com/input.mp4"}]}',
+        description: 'Join job creation payload',
+        displayOptions: {
+            show: {
+                resource: ['job'],
+                operation: ['join'],
+            },
+        },
+    },
+    {
         displayName: 'Query Parameters',
         name: 'query',
         type: 'fixedCollection',
@@ -298,6 +433,36 @@ const jobFields: INodeProperties[] = [
                         ],
                     },
         ],
+    },
+];
+
+const batchFields: INodeProperties[] = [
+    {
+        displayName: 'ID',
+        name: 'batchId',
+        type: 'string',
+        default: '',
+        description: 'Batch ID',
+        displayOptions: {
+            show: {
+                resource: ['batch'],
+                operation: ['get', 'cancel'],
+            },
+        },
+        required: true,
+    },
+    {
+        displayName: 'Body',
+        name: 'body',
+        type: 'json',
+        default: '{"jobs":[{"template":{"id":"01ARZ3NDEKTSV4RRFFQ69G5FAV","composition":"Main"},"assets":[]}]}',
+        description: 'Batch creation payload',
+        displayOptions: {
+            show: {
+                resource: ['batch'],
+                operation: ['create'],
+            },
+        },
     },
 ];
 
@@ -385,16 +550,19 @@ export const nexrenderFields: INodeProperties[] = [
         type: 'options',
         noDataExpression: true,
         options: [
-            { name: 'Template', value: 'template' },
-            { name: 'Job', value: 'job' },
+            { name: 'Batch', value: 'batch' },
             { name: 'Font', value: 'font' },
+            { name: 'Job', value: 'job' },
             { name: 'Secret', value: 'secret' },
+            { name: 'Template', value: 'template' },
         ],
         default: 'job',
     },
 
     ...templateFields,
+    ...templatePaginationFields,
     ...jobFields,
+    ...batchFields,
     ...fontFields,
     ...secretFields,
 ];

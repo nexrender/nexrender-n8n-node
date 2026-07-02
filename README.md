@@ -2,7 +2,7 @@
 
 # n8n-nodes-nexrender
 
-This is an n8n community node. It lets you use the Nexrender Cloud API in your n8n workflows to manage templates, render jobs, fonts, and secrets.
+This is an n8n community node. It lets you use the Nexrender Cloud API in your n8n workflows to manage templates, render jobs, batches, fonts, and secrets.
 
 Nexrender is a cloud rendering platform for Adobe After Effects projects, providing API-based control for template upload, job creation, asset injection, and more.
 
@@ -32,18 +32,30 @@ The node exposes the following resources and operations:
 
 - Template
   - Create: POST /templates — register a template and get upload info
-  - List: GET /templates — list templates for your team
+  - List (Deprecated): GET /templates — list templates with embedded project data
   - Get: GET /templates/{id} — get template details
   - Update: PATCH /templates/{id} — update display name
   - Delete: DELETE /templates/{id} — delete a template
-  - Get Download URL: GET /templates/{id}/upload — presigned URL to download the raw file
+  - Get Download URL: GET /templates/{id}/download — presigned URL to download the raw file
   - Get Upload URL: PUT /templates/{id}/upload — fresh presigned upload URL
+  - List Metadata: GET /v3/templates — list lightweight template metadata
+  - Get Metadata: GET /v3/templates/{id} — get lightweight template metadata
+  - List Compositions: GET /v3/templates/{id}/compositions — list discovered compositions with limit/offset
+  - List Layers: GET /v3/templates/{id}/layers — list discovered layers with limit/offset
 
 - Job
   - Create: POST /jobs — create a render job with template, assets, settings, upload + webhook
   - List: GET /jobs — supports filters: minimal, from, limit, from_date, to_date, states, exclude_states, sort, tags
   - Get: GET /jobs/{id} — job details, progress, stats, output URL
+  - Cancel: PATCH /jobs/{id}/cancel — cancel a queued or pending job
+  - Cancel Many: POST /jobs/cancel — cancel multiple queued or pending jobs
+  - Create Join Job: POST /jobs/join — stitch video assets and nested job outputs
   - Wait For Job (separate node): polls a job ID until status is finished or error
+
+- Batch
+  - Create: POST /batches — create up to 1000 render jobs in one request
+  - Get: GET /batches/{id} — get batch status, stats, and jobs
+  - Cancel: POST /batches/{id}/cancel — cancel cancellable jobs in a batch
 
 - Font
   - Upload: POST /fonts — upload a TTF font (multipart/form-data)

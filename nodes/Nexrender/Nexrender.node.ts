@@ -64,11 +64,15 @@ export class Nexrender implements INodeType {
             return status ? `HTTP ${status}: ${msg}` : String(msg);
         };
 
+        const parseBodyParameter = (bodyParam: unknown) =>
+            typeof bodyParam === 'string' ? JSON.parse(bodyParam) : bodyParam;
+
         for (let i = 0; i < items.length; i++) {
             const resource = this.getNodeParameter('resource', i) as string;
             const operation = this.getNodeParameter('operation', i) as string;
             const creds = (await this.getCredentials('nexrenderApi')) as { domain?: string } | null;
-            const baseURL = (creds?.domain as string) || 'https://api.nexrender.com/api/v2';
+            const baseURL = ((creds?.domain as string) || 'https://api.nexrender.com/api/v2').replace(/\/+$/, '');
+            const apiBaseURL = baseURL.replace(/\/v2$/, '');
 
 
             try {
@@ -129,10 +133,53 @@ export class Nexrender implements INodeType {
                 // Handle all other operations explicitly
                 if (resource === 'job' && operation === 'create') {
                     const bodyParam = this.getNodeParameter('body', i) as unknown;
-                    const payload = typeof bodyParam === 'string' ? JSON.parse(bodyParam) : bodyParam;
+                    const payload = parseBodyParameter(bodyParam);
                     const body = await this.helpers.httpRequestWithAuthentication.call(this, 'nexrenderApi', {
                         method: 'POST',
                         url: '/jobs',
+                        baseURL,
+                        json: true,
+                        body: payload,
+                        headers: { Accept: 'application/json' },
+                    });
+                        results.push({ json: body, pairedItem: { item: i } });
+                    continue;
+                }
+
+                if (resource === 'job' && operation === 'cancel') {
+                    const jobId = this.getNodeParameter('jobId', i) as string;
+                    const body = await this.helpers.httpRequestWithAuthentication.call(this, 'nexrenderApi', {
+                        method: 'PATCH',
+                        url: `/jobs/${jobId}/cancel`,
+                        baseURL,
+                        json: true,
+                        headers: { Accept: 'application/json' },
+                    });
+                        results.push({ json: body, pairedItem: { item: i } });
+                    continue;
+                }
+
+                if (resource === 'job' && operation === 'cancelMany') {
+                    const bodyParam = this.getNodeParameter('body', i) as unknown;
+                    const payload = parseBodyParameter(bodyParam);
+                    const body = await this.helpers.httpRequestWithAuthentication.call(this, 'nexrenderApi', {
+                        method: 'POST',
+                        url: '/jobs/cancel',
+                        baseURL,
+                        json: true,
+                        body: payload,
+                        headers: { Accept: 'application/json' },
+                    });
+                        results.push({ json: body, pairedItem: { item: i } });
+                    continue;
+                }
+
+                if (resource === 'job' && operation === 'join') {
+                    const bodyParam = this.getNodeParameter('body', i) as unknown;
+                    const payload = parseBodyParameter(bodyParam);
+                    const body = await this.helpers.httpRequestWithAuthentication.call(this, 'nexrenderApi', {
+                        method: 'POST',
+                        url: '/jobs/join',
                         baseURL,
                         json: true,
                         body: payload,
@@ -161,7 +208,7 @@ export class Nexrender implements INodeType {
                 if (resource === 'template') {
                     if (operation === 'create') {
                         const bodyParam = this.getNodeParameter('body', i) as unknown;
-                        const payload = typeof bodyParam === 'string' ? JSON.parse(bodyParam) : bodyParam;
+                        const payload = parseBodyParameter(bodyParam);
                         const resp = await this.helpers.httpRequestWithAuthentication.call(this, 'nexrenderApi', {
                             method: 'POST',
                             url: '/templates',
@@ -180,10 +227,24 @@ export class Nexrender implements INodeType {
                             results.push({ json: resp, pairedItem: { item: i } });
                         continue;
                     }
+                    if (operation === 'listMetadata') {
+                        const resp = await this.helpers.httpRequestWithAuthentication.call(this, 'nexrenderApi', {
+                            method: 'GET', url: '/v3/templates', baseURL: apiBaseURL, json: true, headers: { Accept: 'application/json' },
+                        });
+                            results.push({ json: resp, pairedItem: { item: i } });
+                        continue;
+                    }
                     const templateId = this.getNodeParameter('templateId', i, '') as string;
                     if (operation === 'get') {
                         const resp = await this.helpers.httpRequestWithAuthentication.call(this, 'nexrenderApi', {
                             method: 'GET', url: `/templates/${templateId}`, baseURL, json: true, headers: { Accept: 'application/json' },
+                        });
+                            results.push({ json: resp, pairedItem: { item: i } });
+                        continue;
+                    }
+                    if (operation === 'getMetadata') {
+                        const resp = await this.helpers.httpRequestWithAuthentication.call(this, 'nexrenderApi', {
+                            method: 'GET', url: `/v3/templates/${templateId}`, baseURL: apiBaseURL, json: true, headers: { Accept: 'application/json' },
                         });
                             results.push({ json: resp, pairedItem: { item: i } });
                         continue;
@@ -197,7 +258,7 @@ export class Nexrender implements INodeType {
                     }
                     if (operation === 'update') {
                         const bodyParam = this.getNodeParameter('body', i) as unknown;
-                        const payload = typeof bodyParam === 'string' ? JSON.parse(bodyParam) : bodyParam;
+                        const payload = parseBodyParameter(bodyParam);
                         const resp = await this.helpers.httpRequestWithAuthentication.call(this, 'nexrenderApi', {
                             method: 'PATCH', url: `/templates/${templateId}`, baseURL, json: true, body: payload, headers: { Accept: 'application/json' },
                         });
@@ -206,7 +267,7 @@ export class Nexrender implements INodeType {
                     }
                     if (operation === 'getDownloadUrl') {
                         const resp = await this.helpers.httpRequestWithAuthentication.call(this, 'nexrenderApi', {
-                            method: 'GET', url: `/templates/${templateId}/upload`, baseURL, json: true, headers: { Accept: 'application/json' },
+                            method: 'GET', url: `/templates/${templateId}/download`, baseURL, json: true, headers: { Accept: 'application/json' },
                         });
                             results.push({ json: resp, pairedItem: { item: i } });
                         continue;
@@ -214,6 +275,53 @@ export class Nexrender implements INodeType {
                     if (operation === 'getUploadUrl') {
                         const resp = await this.helpers.httpRequestWithAuthentication.call(this, 'nexrenderApi', {
                             method: 'PUT', url: `/templates/${templateId}/upload`, baseURL, json: true, headers: { Accept: 'application/json' },
+                        });
+                            results.push({ json: resp, pairedItem: { item: i } });
+                        continue;
+                    }
+                    if (operation === 'listCompositions' || operation === 'listLayers') {
+                        const limit = this.getNodeParameter('limit', i, 50) as number;
+                        const offset = this.getNodeParameter('offset', i, 0) as number;
+                        const subresource = operation === 'listCompositions' ? 'compositions' : 'layers';
+                        const resp = await this.helpers.httpRequestWithAuthentication.call(this, 'nexrenderApi', {
+                            method: 'GET',
+                            url: `/v3/templates/${templateId}/${subresource}`,
+                            baseURL: apiBaseURL,
+                            qs: { limit, offset },
+                            json: true,
+                            headers: { Accept: 'application/json' },
+                        });
+                            results.push({ json: resp, pairedItem: { item: i } });
+                        continue;
+                    }
+                }
+
+                if (resource === 'batch') {
+                    if (operation === 'create') {
+                        const bodyParam = this.getNodeParameter('body', i) as unknown;
+                        const payload = parseBodyParameter(bodyParam);
+                        const resp = await this.helpers.httpRequestWithAuthentication.call(this, 'nexrenderApi', {
+                            method: 'POST',
+                            url: '/batches',
+                            baseURL,
+                            json: true,
+                            body: payload,
+                            headers: { Accept: 'application/json' },
+                        });
+                            results.push({ json: resp, pairedItem: { item: i } });
+                        continue;
+                    }
+                    const batchId = this.getNodeParameter('batchId', i, '') as string;
+                    if (operation === 'get') {
+                        const resp = await this.helpers.httpRequestWithAuthentication.call(this, 'nexrenderApi', {
+                            method: 'GET', url: `/batches/${batchId}`, baseURL, json: true, headers: { Accept: 'application/json' },
+                        });
+                            results.push({ json: resp, pairedItem: { item: i } });
+                        continue;
+                    }
+                    if (operation === 'cancel') {
+                        const resp = await this.helpers.httpRequestWithAuthentication.call(this, 'nexrenderApi', {
+                            method: 'POST', url: `/batches/${batchId}/cancel`, baseURL, json: true, headers: { Accept: 'application/json' },
                         });
                             results.push({ json: resp, pairedItem: { item: i } });
                         continue;

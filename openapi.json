@@ -8,7 +8,7 @@
   "info": {
     "title": "Nexrender API",
     "version": "2.0",
-    "description": "REST API for the Nexrender cloud rendering platform, enabling programmatic control over After Effects template processing, job management, and asset handling.\n\nFeatures include:\n\n- Template upload and management (AEP, MOGRT, ZIP files)\n- Job creation and status monitoring with real-time progress\n- Font library management for typography consistency\n- Webhook notifications for job lifecycle events\n- Asset injection for dynamic content replacement\n\nAuthentication is required for all endpoints using Bearer token authorization.\n"
+    "description": "REST API for the Nexrender cloud rendering platform, enabling programmatic control over After Effects template processing, job management, and asset handling.\n\nFeatures include:\n\n- Template upload and management (AEP, MOGRT, ZIP files)\n- Job creation and status monitoring with real-time progress\n- Job nesting for multi-composition renders (parent/child jobs)\n- Job stitching to combine multiple videos into one\n- Batch job creation for submitting up to 1000 jobs at once\n- Font library management for typography consistency\n- Secret management for secure API key storage\n- Webhook notifications for job lifecycle events\n- Asset injection for dynamic content replacement\n\nAuthentication is required for all endpoints using Bearer token authorization.\n"
   },
   "servers": [
     {
@@ -21,7 +21,7 @@
       "apiToken": {
         "type": "http",
         "scheme": "bearer",
-        "description": "Bearer token authentication using API tokens for team-based access control.\n\nYou can generate your own API token at: https://app.nexrender.com/team/settings\n"
+        "description": "Bearer token authentication using API tokens for team-based access control.\n\nYou can generate your own API token at: https://app.nexrender.com/settings/api-tokens\n"
       }
     },
     "schemas": {
@@ -50,7 +50,7 @@
       },
       "JobAsset": {
         "type": "object",
-        "description": "Asset to be used in job rendering, containing source information and target layer details",
+        "description": "Asset to be used in job rendering, containing source information and target layer details. For function assets, provide the function identifier in `name` and arguments in `params`.",
         "properties": {
           "src": {
             "type": "string",
@@ -58,7 +58,7 @@
           },
           "type": {
             "type": "string",
-            "description": "Asset type (e.g., image, video, audio, text, data, script)"
+            "description": "Asset type (e.g., image, video, audio, text, data, script, job)"
           },
           "layerName": {
             "type": "string",
@@ -66,13 +66,323 @@
           },
           "name": {
             "type": "string",
-            "description": "Human-readable name for the asset"
+            "description": "Human-readable name for the asset. For function assets (`type: function`), this should be the NX function name (for example, `nx:layer-autoscale`)."
+          },
+          "conform": {
+            "type": "boolean",
+            "description": "When true for video, image, or audio assets, the worker normalizes the downloaded media to a render-engine-safe target format before assembly. If omitted, the API auto-enables conform for known risky inputs such as WebM, WebP, GIF, and OGG/OGA sources. GIF inputs are converted to a ProRes 4444 MOV file and treated as video."
+          },
+          "params": {
+            "type": "object",
+            "description": "Optional parameters for function assets. For supported NX layer functions (`nx:layer-autoscale`, `nx:layer-duration-set`, `nx:layer-start-set`, `nx:layer-state-set`, `nx:solid-color-set`, `nx:text-params-set`), `params.layerName` accepts a single string or an array of strings. When an array is provided, the API expands the function asset into multiple per-layer assets while preserving the original `assets` order.",
+            "properties": {
+              "layerName": {
+                "description": "Target layer name(s) for function assets",
+                "oneOf": [
+                  {
+                    "type": "string",
+                    "description": "Single target layer name"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1,
+                    "description": "Multiple target layer names (supported by selected NX layer functions only)"
+                  }
+                ]
+              }
+            },
+            "additionalProperties": true
           }
         },
         "required": [
           "type"
         ],
         "additionalProperties": true
+      },
+      "JobAssetNested": {
+        "type": "object",
+        "description": "A nested job asset that renders a child job first, then uses its output as a video/image asset in the parent composition. The child job's output URL is automatically injected into the parent's assets.",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["job"],
+            "description": "Must be 'job' to indicate this is a nested job asset"
+          },
+          "layerName": {
+            "type": "string",
+            "description": "Target layer name in the parent composition where the child job's output will be placed (required)"
+          },
+          "template": {
+            "type": "object",
+            "description": "Template configuration for the child job",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Z0-9]{26}$",
+                "description": "Template ID for the child job (required)"
+              },
+              "composition": {
+                "type": "string",
+                "description": "Composition name to render in the child job (required)"
+              },
+              "name": {
+                "type": "string",
+                "description": "Template name (optional)"
+              }
+            },
+            "required": ["id", "composition"]
+          },
+          "assets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/JobAsset"
+            },
+            "description": "Assets to inject into the child job"
+          },
+          "preview": {
+            "type": "boolean",
+            "default": false,
+            "description": "Generate preview quality for the child job"
+          },
+          "settings": {
+            "type": "object",
+            "description": "Render settings for the child job",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": ["video", "image"],
+                "default": "video",
+                "description": "Output type for the child job"
+              },
+              "frames": {
+                "oneOf": [
+                  { "type": "integer" },
+                  { "type": "array", "items": { "type": "integer" } }
+                ],
+                "description": "Frame specification for image output"
+              },
+              "quality": {
+                "type": "string",
+                "enum": ["draft", "full"],
+                "description": "Render quality"
+              },
+              "codec": {
+                "type": "string",
+                "description": "Output codec"
+              },
+              "engine": {
+                "type": "string",
+                "enum": ["ae2025", "ae2026"],
+                "default": "ae2026",
+                "description": "After Effects render engine version for the child job"
+              }
+            }
+          }
+        },
+        "required": ["type", "layerName", "template"]
+      },
+      "JoinVideoAsset": {
+        "type": "object",
+        "description": "A static video asset for the join/stitch operation",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["video"],
+            "description": "Must be 'video' for static video assets"
+          },
+          "src": {
+            "type": "string",
+            "description": "URL to the video file to include in the stitch"
+          }
+        },
+        "required": ["type", "src"]
+      },
+      "JoinJobAsset": {
+        "type": "object",
+        "description": "A job asset that will be rendered first and its output included in the stitch",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["job"],
+            "description": "Must be 'job' for render job assets"
+          },
+          "template": {
+            "type": "object",
+            "description": "Template configuration for the child job",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Z0-9]{26}$",
+                "description": "Template ID for the child job"
+              },
+              "composition": {
+                "type": "string",
+                "description": "Composition name to render"
+              },
+              "name": {
+                "type": "string",
+                "description": "Template name (optional)"
+              }
+            },
+            "required": ["id", "composition"]
+          },
+          "assets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/JobAsset"
+            },
+            "description": "Assets to inject into the child job"
+          },
+          "preview": {
+            "type": "boolean",
+            "default": false,
+            "description": "Generate preview quality"
+          },
+          "settings": {
+            "type": "object",
+            "description": "Render settings for the child job",
+            "properties": {
+              "frames": {
+                "oneOf": [
+                  { "type": "integer" },
+                  { "type": "array", "items": { "type": "integer" } }
+                ]
+              },
+              "quality": {
+                "type": "string",
+                "enum": ["draft", "full"]
+              },
+              "codec": {
+                "type": "string"
+              },
+              "engine": {
+                "type": "string",
+                "enum": ["ae2025", "ae2026"],
+                "default": "ae2026",
+                "description": "After Effects render engine version for the child job"
+              }
+            }
+          }
+        },
+        "required": ["type", "template"]
+      },
+      "JoinSettings": {
+        "type": "object",
+        "description": "Settings for the stitch/join operation",
+        "properties": {
+          "preset": {
+            "type": "string",
+            "enum": ["mp4"],
+            "description": "Output format preset"
+          }
+        }
+      },
+      "JoinJobCreation": {
+        "type": "object",
+        "description": "Configuration for creating a join/stitch job that combines multiple videos into one",
+        "properties": {
+          "settings": {
+            "$ref": "#/components/schemas/JoinSettings"
+          },
+          "assets": {
+            "type": "array",
+            "description": "Ordered list of video or job assets to stitch together",
+            "items": {
+              "oneOf": [
+                { "$ref": "#/components/schemas/JoinVideoAsset" },
+                { "$ref": "#/components/schemas/JoinJobAsset" }
+              ],
+              "discriminator": {
+                "propertyName": "type",
+                "mapping": {
+                  "video": "#/components/schemas/JoinVideoAsset",
+                  "job": "#/components/schemas/JoinJobAsset"
+                }
+              }
+            },
+            "minItems": 1
+          },
+          "upload": {
+            "type": "object",
+            "description": "Custom upload configuration (same as regular job creation)",
+            "properties": {
+              "prefix": { "type": "string" },
+              "outputUrl": { "type": "string" },
+              "provider": { "type": "string", "enum": ["s3"], "default": "s3" },
+              "params": {
+                "type": "object",
+                "properties": {
+                  "endpoint": { "type": "string" },
+                  "region": { "type": "string" },
+                  "bucket": { "type": "string" },
+                  "acl": { "type": "string" },
+                  "accessKeyId": { "type": "string" },
+                  "accessKeySecret": { "type": "string" }
+                },
+                "required": ["region", "bucket", "accessKeyId", "accessKeySecret"]
+              }
+            }
+          },
+          "webhook": {
+            "$ref": "#/components/schemas/JobWebhook"
+          }
+        },
+        "required": ["assets"]
+      },
+      "JobCreationResponse": {
+        "type": "object",
+        "description": "Response after creating a job, includes children info for parent jobs",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique job identifier"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["queued", "pending"],
+            "description": "'queued' for regular jobs, 'pending' for parent jobs waiting on children"
+          },
+          "outputUrl": {
+            "type": "string",
+            "description": "URL where the rendered output will be available"
+          },
+          "children": {
+            "type": "array",
+            "description": "Child job details (only present for parent jobs with nested job assets)",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "Child job identifier"
+                },
+                "status": {
+                  "type": "string",
+                  "description": "Child job status (typically 'queued')"
+                },
+                "outputUrl": {
+                  "type": "string",
+                  "description": "URL where the child job's rendered output will be available"
+                },
+                "missingFonts": {
+                  "type": "array",
+                  "items": { "type": "string" },
+                  "description": "List of fonts referenced in child's template but not found in team's font library (only present if fonts are missing)"
+                }
+              },
+              "required": ["id", "outputUrl"]
+            }
+          },
+          "missingFonts": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "List of fonts referenced in template but not found in team's font library"
+          }
+        },
+        "required": ["id", "status", "outputUrl"]
       },
       "JobWebhook": {
         "type": "object",
@@ -160,10 +470,19 @@
           "assets": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/JobAsset"
+              "oneOf": [
+                { "$ref": "#/components/schemas/JobAsset" },
+                { "$ref": "#/components/schemas/JobAssetNested" }
+              ],
+              "discriminator": {
+                "propertyName": "type",
+                "mapping": {
+                  "job": "#/components/schemas/JobAssetNested"
+                }
+              }
             },
             "default": [],
-            "description": "Collection of media assets (images, videos, audio, scripts, text, ...) to use in the render"
+            "description": "Collection of media assets (images, videos, audio, scripts, text) or nested job assets (type: 'job') to use in the render. Nested job assets render as child jobs first, with output injected into the parent composition. For supported NX layer functions, `params.layerName` can be a string or an array of strings; array values are expanded in place while preserving asset order."
           },
           "settings": {
             "type": "object",
@@ -171,8 +490,8 @@
             "properties": {
               "type": {
                 "type": "string",
-                "enum": ["video", "image"],
-                "description": "Output render type - 'video' for MP4/MOV files, 'image' for PNG/JPG files"
+                "enum": ["video", "image", "aep"],
+                "description": "Output render type - 'video' for MP4/MOV files, 'image' for PNG/JPG files, 'aep' for full archive"
               },
               "frames": {
                 "oneOf": [
@@ -202,6 +521,12 @@
               "codec": {
                 "type": "string",
                 "description": "Output codec specification (e.g., 'h264_vbr_15mbps', 'prores_422', 'png', 'jpeg')"
+              },
+              "engine": {
+                "type": "string",
+                "enum": ["ae2025", "ae2026"],
+                "default": "ae2026",
+                "description": "After Effects render engine version used when the job is picked up by a worker"
               }
             },
             "additionalProperties": false
@@ -284,7 +609,7 @@
           },
           "status": {
             "type": "string",
-            "description": "Current job status (queued, render:dorender, finished, error, etc.)"
+            "description": "Current job status (queued, render:dorender, finished, error, etc.). Manually cancelled jobs are normalized to `manually_cancelled` in v2 responses even though they are stored internally as `error`."
           },
           "progress": {
             "type": "number",
@@ -347,6 +672,32 @@
           }
         }
       },
+      "JobCancellationRequest": {
+        "type": "object",
+        "description": "Request payload for cancelling one or more jobs by ID.",
+        "properties": {
+          "jobs": {
+            "type": "array",
+            "description": "List of job IDs to cancel. Each explicitly requested job must be in a cancellable state.",
+            "items": {
+              "type": "string",
+              "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$",
+              "description": "Unique job identifier in ULID format"
+            },
+            "minItems": 1,
+            "maxItems": 1000,
+            "uniqueItems": true
+          }
+        },
+        "required": ["jobs"]
+      },
+      "JobCancellationResponse": {
+        "type": "array",
+        "description": "Jobs cancelled by the request, including any related parent, child, or sibling jobs cancelled as part of the same operation. Cancelling a child may trigger sibling cascades when those related jobs are still cancellable.",
+        "items": {
+          "$ref": "#/components/schemas/Job"
+        }
+      },
       "TemplateCreation": {
         "type": "object",
         "description": "Configuration for creating a new template with project file type and display information",
@@ -363,6 +714,10 @@
           "displayName": {
             "type": "string",
             "description": "Human-readable name for the template shown in UI and listings"
+          },
+          "src": {
+            "type": "string",
+            "description": "Link to the project file nexrender should create the template from. If not set, presigned upload URL is returned in the response object instead."
           }
         },
         "required": [
@@ -561,6 +916,439 @@
           "name",
           "value"
         ]
+      },
+      "BatchCreation": {
+        "type": "object",
+        "description": "Configuration for creating a batch of render jobs in a single request (1 to 1000 jobs)",
+        "properties": {
+          "jobs": {
+            "type": "array",
+            "description": "Array of job configurations to create as a batch. Each item follows the same schema as a single job creation request.",
+            "items": {
+              "$ref": "#/components/schemas/JobCreation"
+            },
+            "minItems": 1,
+            "maxItems": 1000
+          }
+        },
+        "required": ["jobs"]
+      },
+      "BatchCreationResponse": {
+        "type": "object",
+        "description": "Response after creating a batch of jobs, including per-job results and any errors",
+        "properties": {
+          "batchId": {
+            "type": "string",
+            "description": "Unique batch identifier in ULID format for tracking the entire batch"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["created", "partial", "error"],
+            "description": "'created' if all jobs succeeded, 'partial' if some failed, 'error' if all failed"
+          },
+          "totalJobs": {
+            "type": "integer",
+            "description": "Total number of jobs in the batch request"
+          },
+          "successCount": {
+            "type": "integer",
+            "description": "Number of successfully created jobs"
+          },
+          "jobs": {
+            "type": "array",
+            "description": "Array of successfully created job details",
+            "items": {
+              "type": "object",
+              "properties": {
+                "index": {
+                  "type": "integer",
+                  "description": "Position of this job in the original request array"
+                },
+                "id": {
+                  "type": "string",
+                  "description": "Unique job identifier"
+                },
+                "status": {
+                  "type": "string",
+                  "description": "Initial job status ('queued' or 'pending' for parent jobs)"
+                },
+                "outputUrl": {
+                  "type": "string",
+                  "description": "URL where the rendered output will be available"
+                },
+                "children": {
+                  "type": "array",
+                  "description": "Child job details (only present for jobs with nested job assets)",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": { "type": "string" },
+                      "status": { "type": "string" },
+                      "outputUrl": { "type": "string" },
+                      "missingFonts": {
+                        "type": "array",
+                        "items": { "type": "string" }
+                      }
+                    }
+                  }
+                },
+                "missingFonts": {
+                  "type": "array",
+                  "items": { "type": "string" },
+                  "description": "Fonts referenced in template but not found in team's font library"
+                }
+              }
+            }
+          },
+          "errors": {
+            "type": "array",
+            "description": "Array of errors for failed jobs (only present when status is 'partial' or 'error')",
+            "items": {
+              "type": "object",
+              "properties": {
+                "index": {
+                  "type": "integer",
+                  "description": "Position of the failed job in the original request array"
+                },
+                "error": {
+                  "type": "string",
+                  "description": "Error message describing why the job failed"
+                },
+                "errorCode": {
+                  "type": "string",
+                  "description": "Machine-readable error code"
+                }
+              }
+            }
+          }
+        },
+        "required": ["batchId", "status", "totalJobs", "successCount", "jobs"]
+      },
+      "BatchStatusResponse": {
+        "type": "object",
+        "description": "Current status and progress of a batch of jobs",
+        "properties": {
+          "batchId": {
+            "type": "string",
+            "description": "Unique batch identifier"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["processing", "finished", "error"],
+            "description": "Overall batch status based on aggregate job states"
+          },
+          "stats": {
+            "type": "object",
+            "description": "Aggregate statistics for all jobs in the batch",
+            "properties": {
+              "total": {
+                "type": "integer",
+                "description": "Total number of jobs in the batch"
+              },
+              "finished": {
+                "type": "integer",
+                "description": "Number of successfully completed jobs"
+              },
+              "error": {
+                "type": "integer",
+                "description": "Number of failed jobs"
+              },
+              "pending": {
+                "type": "integer",
+                "description": "Number of jobs still processing or queued"
+              }
+            }
+          },
+          "jobs": {
+            "type": "array",
+            "description": "Individual job details within the batch",
+            "items": {
+              "type": "object",
+              "properties": {
+                "index": {
+                  "type": "integer",
+                  "description": "Position of this job in the original batch request"
+                },
+                "id": {
+                  "type": "string",
+                  "description": "Unique job identifier"
+                },
+                "status": {
+                  "type": "string",
+                  "description": "Current job status. Manually cancelled jobs are returned as `manually_cancelled`."
+                },
+                "outputUrl": {
+                  "type": "string",
+                  "description": "URL to the rendered output (available when finished)"
+                },
+                "stats": {
+                  "type": "object",
+                  "description": "Job statistics (only included for finished or error states)",
+                  "properties": {
+                    "createdAt": { "type": "string", "format": "date-time" },
+                    "updatedAt": { "type": "string", "format": "date-time" },
+                    "startedAt": { "type": "string", "format": "date-time", "nullable": true },
+                    "finishedAt": { "type": "string", "format": "date-time", "nullable": true },
+                    "errorAt": { "type": "string", "format": "date-time", "nullable": true },
+                    "totalAssets": { "type": "integer" },
+                    "renderDuration": { "type": "number", "nullable": true },
+                    "error": { "type": "string", "nullable": true }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "required": ["batchId", "status", "stats", "jobs"]
+      },
+      "BatchCancellationJobResult": {
+        "type": "object",
+        "description": "Cancellation result for a top-level job belonging to the batch.",
+        "properties": {
+          "index": {
+            "type": "integer",
+            "description": "Zero-based index of the job within the batch."
+          },
+          "id": {
+            "type": "string",
+            "description": "Unique identifier of the top-level batch job."
+          },
+          "result": {
+            "type": "string",
+            "enum": ["cancelled", "skipped"],
+            "description": "Whether the top-level batch job was cancelled or skipped."
+          },
+          "status": {
+            "type": "string",
+            "description": "Current state of the top-level job after the cancellation attempt. Manually cancelled jobs are returned as `manually_cancelled`."
+          },
+          "reason": {
+            "type": "string",
+            "description": "Human-readable explanation for skipped jobs."
+          }
+        },
+        "required": ["index", "id", "result", "status"]
+      },
+      "BatchCancellationResponse": {
+        "type": "object",
+        "description": "Best-effort cancellation summary for a batch. Counts refer to the top-level jobs stored under the batch ID; cancelledJobs includes all unique jobs actually cancelled, including cascaded relatives.",
+        "properties": {
+          "batchId": {
+            "type": "string",
+            "description": "Unique batch identifier."
+          },
+          "status": {
+            "type": "string",
+            "enum": ["cancelled", "partial", "unchanged"],
+            "description": "cancelled when every top-level batch job was cancelled, partial when some were skipped, unchanged when none were cancellable."
+          },
+          "totalJobs": {
+            "type": "integer",
+            "description": "Total number of top-level jobs in the batch."
+          },
+          "cancelledCount": {
+            "type": "integer",
+            "description": "Number of top-level jobs cancelled by the request."
+          },
+          "skippedCount": {
+            "type": "integer",
+            "description": "Number of top-level jobs skipped because they were already missing or not in a cancellable state."
+          },
+          "jobs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BatchCancellationJobResult"
+            }
+          },
+          "cancelledJobs": {
+            "$ref": "#/components/schemas/JobCancellationResponse"
+          }
+        },
+        "required": ["batchId", "status", "totalJobs", "cancelledCount", "skippedCount", "jobs", "cancelledJobs"]
+      },
+      "TemplateV3": {
+        "type": "object",
+        "description": "Lightweight template metadata returned by the v3 template API. Composition and layer structure is exposed through separate paginated endpoints.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$",
+            "description": "Unique template identifier used for referencing in jobs and API operations"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "aep",
+              "zip",
+              "mogrt"
+            ],
+            "description": "Template file format"
+          },
+          "displayName": {
+            "type": "string",
+            "description": "Human-readable template name"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "awaiting_upload",
+              "downloading",
+              "processing",
+              "uploaded",
+              "error"
+            ],
+            "description": "Current template processing status"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO timestamp when the template was created"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO timestamp when the template was last updated"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "displayName",
+          "status",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "TemplateComposition": {
+        "type": "object",
+        "description": "After Effects composition discovered during template processing",
+        "properties": {
+          "aeid": {
+            "type": "string",
+            "description": "After Effects composition id"
+          },
+          "name": {
+            "type": "string",
+            "description": "Composition name to use as template.composition when creating a render job"
+          },
+          "width": {
+            "type": "number",
+            "description": "Composition width in pixels"
+          },
+          "height": {
+            "type": "number",
+            "description": "Composition height in pixels"
+          },
+          "duration": {
+            "type": "number",
+            "description": "Composition duration in seconds"
+          },
+          "frame_rate": {
+            "type": "number",
+            "description": "Composition frame rate"
+          },
+          "data": {
+            "type": "object",
+            "description": "Additional parser metadata for the composition",
+            "additionalProperties": true
+          }
+        },
+        "required": [
+          "aeid",
+          "name",
+          "width",
+          "height",
+          "duration",
+          "frame_rate",
+          "data"
+        ]
+      },
+      "TemplateLayer": {
+        "type": "object",
+        "description": "After Effects layer discovered during template processing",
+        "properties": {
+          "composition_id": {
+            "type": "integer",
+            "description": "After Effects id of the composition that owns this layer. Match it to a composition aeid."
+          },
+          "aeid": {
+            "type": "integer",
+            "description": "After Effects layer id"
+          },
+          "name": {
+            "type": "string",
+            "description": "Layer name to use as layerName in render job assets and functions"
+          },
+          "top": {
+            "type": "number",
+            "description": "Layer bounds top position at time 0"
+          },
+          "left": {
+            "type": "number",
+            "description": "Layer bounds left position at time 0"
+          },
+          "width": {
+            "type": "number",
+            "description": "Layer bounds width at time 0"
+          },
+          "height": {
+            "type": "number",
+            "description": "Layer bounds height at time 0"
+          },
+          "start_time": {
+            "type": "number",
+            "description": "Layer start time in seconds"
+          },
+          "in_point": {
+            "type": "number",
+            "description": "Layer in point in seconds"
+          },
+          "out_point": {
+            "type": "number",
+            "description": "Layer out point in seconds"
+          },
+          "layer_type": {
+            "type": "string",
+            "description": "Detected After Effects layer type"
+          },
+          "source_type": {
+            "type": "string",
+            "nullable": true,
+            "description": "Detected source type for AV layers, when available"
+          },
+          "source_comp_id": {
+            "type": "integer",
+            "nullable": true,
+            "description": "After Effects id of the source composition for precomp layers, when available"
+          },
+          "parent_id": {
+            "type": "integer",
+            "nullable": true,
+            "description": "After Effects id of the parent layer, when available"
+          },
+          "data": {
+            "type": "object",
+            "description": "Additional parser metadata for the layer",
+            "additionalProperties": true
+          }
+        },
+        "required": [
+          "composition_id",
+          "aeid",
+          "name",
+          "top",
+          "left",
+          "width",
+          "height",
+          "start_time",
+          "in_point",
+          "out_point",
+          "layer_type",
+          "source_type",
+          "source_comp_id",
+          "parent_id",
+          "data"
+        ]
       }
     }
   },
@@ -628,13 +1416,14 @@
         "operationId": "createOrUpdateTemplate"
       },
       "get": {
-        "summary": "List all templates",
-        "description": "Retrieve all templates available to the authenticated team with their metadata and processing status",
+        "summary": "List all templates (deprecated)",
+        "description": "Deprecated: v2 template listing will be removed in a future release. Use GET /v3/templates for lightweight template metadata and GET /v3/templates/{id}/compositions or GET /v3/templates/{id}/layers for parsed template structure.",
+        "deprecated": true,
         "x-mint": {
           "mcp": {
             "enabled": true,
             "name": "list-templates",
-            "description": "Retrieve all templates available to your team, including metadata, processing status, and discovered compositions."
+            "description": "Deprecated v2 template listing. Use list-templates-v3 instead."
           }
         },
         "responses": {
@@ -666,6 +1455,54 @@
           "Template Management"
         ],
         "operationId": "listTemplates"
+      }
+    },
+    "/v3/templates": {
+      "servers": [
+        {
+          "url": "https://api.nexrender.com/api",
+          "description": "Production API server"
+        }
+      ],
+      "get": {
+        "summary": "List templates (v3)",
+        "description": "Retrieve lightweight template metadata for all templates available to the authenticated team. Template compositions and layers are available from the v3 template subresources.",
+        "x-mint": {
+          "mcp": {
+            "enabled": true,
+            "name": "list-templates-v3",
+            "description": "Retrieve lightweight v3 template metadata without embedded composition or layer arrays."
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved list of templates",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TemplateV3"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing API token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Template Management"
+        ],
+        "operationId": "listTemplatesV3"
       }
     },
     "/templates/{id}": {
@@ -870,7 +1707,288 @@
         "operationId": "updateTemplate"
       }
     },
-    "/templates/{id}/upload": {
+    "/v3/templates/{id}": {
+      "servers": [
+        {
+          "url": "https://api.nexrender.com/api",
+          "description": "Production API server"
+        }
+      ],
+      "get": {
+        "summary": "Get template metadata (v3)",
+        "description": "Retrieve lightweight metadata for one template. Use the compositions and layers subresources to inspect template structure.",
+        "x-mint": {
+          "mcp": {
+            "enabled": true,
+            "name": "get-template-v3",
+            "description": "Fetch lightweight v3 metadata for one template."
+          }
+        },
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "Unique template identifier in ULID format",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved template metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TemplateV3"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid template id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing API token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Template not found - the specified template ID does not exist or is not accessible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Template Management"
+        ],
+        "operationId": "getTemplateV3"
+      }
+    },
+    "/v3/templates/{id}/compositions": {
+      "servers": [
+        {
+          "url": "https://api.nexrender.com/api",
+          "description": "Production API server"
+        }
+      ],
+      "get": {
+        "summary": "List template compositions (v3)",
+        "description": "Retrieve paginated After Effects compositions discovered during template processing.",
+        "x-mint": {
+          "mcp": {
+            "enabled": true,
+            "name": "list-template-compositions-v3",
+            "description": "List discovered compositions for a template with query parameter pagination."
+          }
+        },
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "Unique template identifier in ULID format",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Number of items to return. Defaults to 300. Values above 1000 are capped to 1000.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 300
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "description": "Number of items to skip before returning results. Defaults to 0.",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved template compositions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TemplateComposition"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid template id or pagination parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing API token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Template not found - the specified template ID does not exist or is not accessible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Template Management"
+        ],
+        "operationId": "listTemplateCompositionsV3"
+      }
+    },
+    "/v3/templates/{id}/layers": {
+      "servers": [
+        {
+          "url": "https://api.nexrender.com/api",
+          "description": "Production API server"
+        }
+      ],
+      "get": {
+        "summary": "List template layers (v3)",
+        "description": "Retrieve paginated After Effects layers discovered during template processing.",
+        "x-mint": {
+          "mcp": {
+            "enabled": true,
+            "name": "list-template-layers-v3",
+            "description": "List discovered layers for a template with query parameter pagination."
+          }
+        },
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "Unique template identifier in ULID format",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Number of items to return. Defaults to 300. Values above 1000 are capped to 1000.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 300
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "description": "Number of items to skip before returning results. Defaults to 0.",
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved template layers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TemplateLayer"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid template id or pagination parameters",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing API token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Template not found - the specified template ID does not exist or is not accessible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Template Management"
+        ],
+        "operationId": "listTemplateLayersV3"
+      }
+    },
+    "/templates/{id}/download": {
       "get": {
         "summary": "Get download URL for template file",
         "description": "Generate a presigned download URL for accessing the template file securely",
@@ -944,7 +2062,9 @@
           "Template Management"
         ],
         "operationId": "getTemplateDownloadUrl"
-      },
+      }
+    },
+    "/templates/{id}/upload": {
       "put": {
         "summary": "Get fresh upload URL for template file",
         "description": "Generate a new presigned upload URL for uploading or replacing the template file (previous URLs expire)",
@@ -1007,12 +2127,12 @@
     "/jobs": {
       "post": {
         "summary": "Create new job",
-        "description": "Submit a new render job with template, assets, and configuration options",
+        "description": "Submit a new render job with template, assets, and configuration options. Assets can include nested job definitions (type: 'job') that render as child jobs first, with their output automatically injected as video/image assets into the parent composition. Function assets support `params.layerName` as a string, and selected NX layer functions also support `params.layerName` as an array of strings expanded in order. When nested jobs are present, the parent job enters 'pending' state until all children complete.",
         "x-mint": {
           "mcp": {
             "enabled": true,
             "name": "create-job",
-            "description": "Submit a new After Effects render job with chosen template, assets, fonts, and webhooks."
+            "description": "Submit a new After Effects render job with chosen template, assets (including nested job assets), fonts, and webhooks."
           }
         },
         "requestBody": {
@@ -1026,11 +2146,11 @@
         },
         "responses": {
           "201": {
-            "description": "Job successfully created and queued for processing",
+            "description": "Job successfully created and queued for processing. Returns 'pending' status with children array when nested job assets are present.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Job"
+                  "$ref": "#/components/schemas/JobCreationResponse"
                 }
               }
             }
@@ -1206,6 +2326,163 @@
         "operationId": "listJobs"
       }
     },
+    "/jobs/cancel": {
+      "post": {
+        "summary": "Cancel multiple jobs",
+        "description": "Cancel multiple jobs by ID. Each explicitly requested job must be in a cancellable state. Related parent, child, or sibling jobs discovered through nesting are cancelled on a best-effort basis and included in the response, including sibling cascades from child cancellation.",
+        "x-mint": {
+          "mcp": {
+            "enabled": true,
+            "name": "cancel-jobs",
+            "description": "Cancel multiple jobs at once and return all jobs cancelled by the request, including cascaded parent, child, and sibling jobs."
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JobCancellationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successfully cancelled the requested job set and any related jobs that were also cancellable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobCancellationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request body - malformed or duplicate job identifiers.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing API token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - team not accessible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "One or more requested jobs were not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "One or more explicitly requested jobs are not in a cancellable state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Render Management"
+        ],
+        "operationId": "cancelJobs"
+      }
+    },
+    "/jobs/join": {
+      "post": {
+        "summary": "Create join/stitch job",
+        "description": "Create a job that stitches multiple videos together. Assets can be static video URLs or nested job definitions that render first. When assets include nested jobs, child jobs are created and rendered before the parent stitch operation. The parent job enters 'pending' state until all children complete.",
+        "x-mint": {
+          "mcp": {
+            "enabled": true,
+            "name": "create-join-job",
+            "description": "Create a job that stitches multiple videos together. Supports both static video URLs and nested render jobs."
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JoinJobCreation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Join job successfully created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobCreationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request - missing required fields or invalid asset configuration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing API token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Template not found - a nested job references a template ID that does not exist",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Render Management"
+        ],
+        "operationId": "createJoinJob"
+      }
+    },
     "/jobs/{id}": {
       "get": {
         "summary": "Get job details",
@@ -1264,6 +2541,97 @@
           "Render Management"
         ],
         "operationId": "getJob"
+      }
+    },
+    "/jobs/{id}/cancel": {
+      "patch": {
+        "summary": "Cancel job",
+        "description": "Cancel a single job by ID. The requested job must be in a cancellable state. Related parent, child, or sibling jobs discovered through nesting are cancelled on a best-effort basis and included in the response, including sibling cascades from child cancellation.",
+        "x-mint": {
+          "mcp": {
+            "enabled": true,
+            "name": "cancel-job",
+            "description": "Cancel a single job and return all jobs cancelled by the request, including cascaded parent, child, and sibling jobs."
+          }
+        },
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "Unique job identifier",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully cancelled the job and any related jobs that were also cancellable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobCancellationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid job identifier.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing API token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - team not accessible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Requested job was not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The requested job is not in a cancellable state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Render Management"
+        ],
+        "operationId": "cancelJob"
       }
     },
     "/fonts": {
@@ -1330,7 +2698,7 @@
             }
           },
           "413": {
-            "description": "File too large - font file exceeds size limits",
+            "description": "File too large - font file exceeds 40MiB size limit",
             "content": {
               "application/json": {
                 "schema": {
@@ -1652,6 +3020,236 @@
           "Secret Management"
         ],
         "operationId": "deleteSecret"
+      }
+    },
+    "/batches": {
+      "post": {
+        "summary": "Create batch of jobs",
+        "description": "Submit multiple render jobs in a single request. Each job in the batch follows the same schema as a single job creation. Supports partial success - some jobs may succeed while others fail.",
+        "x-mint": {
+          "mcp": {
+            "enabled": true,
+            "name": "create-batch",
+            "description": "Submit up to 1000 render jobs in a single batch request. Returns per-job results with a shared batch ID for tracking."
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchCreation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Batch created successfully. Check 'status' field: 'created' means all jobs succeeded, 'partial' means some failed (see 'errors' array).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchCreationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request or all jobs in the batch failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchCreationResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing API token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - license is not valid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Batch Management"
+        ],
+        "operationId": "createBatch"
+      }
+    },
+    "/batches/{id}": {
+      "get": {
+        "summary": "Get batch status",
+        "description": "Retrieve the current status and progress of a batch of jobs, including aggregate statistics and per-job details",
+        "x-mint": {
+          "mcp": {
+            "enabled": true,
+            "name": "get-batch-status",
+            "description": "Check the progress of a batch by its ID. Returns overall status, aggregate stats, and per-job details."
+          }
+        },
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "Unique batch identifier in ULID format",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved batch status and job details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchStatusResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid batch ID format",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing API token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - license is not valid",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Batch not found - no jobs exist with this batch ID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Batch Management"
+        ],
+        "operationId": "getBatchStatus"
+      }
+    },
+    "/batches/{id}/cancel": {
+      "post": {
+        "summary": "Cancel batch jobs",
+        "description": "Attempt to cancel every top-level job belonging to the batch. Batch cancellation is best effort: jobs already cancelled or already in progress are skipped, while related parent, child, or sibling jobs discovered through nesting are cancelled when possible, including sibling cascades from child cancellation.",
+        "x-mint": {
+          "mcp": {
+            "enabled": true,
+            "name": "cancel-batch",
+            "description": "Best-effort cancellation for all jobs in a batch, including related parent, child, and sibling jobs discovered through nesting."
+          }
+        },
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "Unique batch identifier in ULID format",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Best-effort batch cancellation completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchCancellationResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid batch ID format.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing API token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - team not accessible",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Batch not found - no top-level jobs exist with this batch ID.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Batch Management"
+        ],
+        "operationId": "cancelBatch"
       }
     }
   }
