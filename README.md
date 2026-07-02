@@ -112,4 +112,5 @@ Credential: “Nexrender API”
 
 ## Version history
 
+- 0.2.0 — Added batch, job cancellation, join job, and template metadata/composition/layer operations; fixed template download URL
 - 0.1.0 — Initial release: Templates, Jobs, Fonts, Secrets operations
