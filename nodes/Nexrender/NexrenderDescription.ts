@@ -134,6 +134,12 @@ export const nexrenderOperations: INodeProperties[] = [
                 action: 'Get job',
             },
             {
+                name: 'Get Logs',
+                value: 'getLogs',
+                description: 'Get the stored render log for a job',
+                action: 'Get job logs',
+            },
+            {
                 name: 'List',
                 value: 'list',
                 description: 'List jobs',
@@ -318,7 +324,7 @@ const jobFields: INodeProperties[] = [
         displayOptions: {
             show: {
                 resource: ['job'],
-                operation: ['get', 'cancel'],
+                operation: ['get', 'getLogs', 'cancel'],
             },
         },
         required: true,

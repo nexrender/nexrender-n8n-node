@@ -2543,6 +2543,114 @@
         "operationId": "getJob"
       }
     },
+    "/jobs/{id}/logs": {
+      "get": {
+        "summary": "Get job render logs",
+        "description": "Retrieve the stored render log for a job as plain text. Returns 404 when the job does not exist or no stored log is available.",
+        "x-mint": {
+          "mcp": {
+            "enabled": true,
+            "name": "get-job-logs",
+            "description": "Retrieve the plain-text render log for a specific job."
+          }
+        },
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "description": "Unique job identifier",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9A-HJKMNP-TV-Z]{26}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved the render log.",
+            "headers": {
+              "Content-Disposition": {
+                "description": "Inline filename derived from the job ID.",
+                "schema": {
+                  "type": "string",
+                  "example": "inline; filename=\"01ARZ3NDEKTSV4RRFFQ69G5FAV.log\""
+                }
+              },
+              "X-Content-Type-Options": {
+                "description": "Prevents browsers from MIME-sniffing the plain-text response.",
+                "schema": {
+                  "type": "string",
+                  "enum": ["nosniff"]
+                }
+              }
+            },
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "example": "aerender version 26.0x67\nPROGRESS: Launching After Effects...\nPROGRESS:  Render Settings: nx_full\nPROGRESS:  Output Module: nx_video_h264_vbr_15mbps\nPROGRESS:  Format: H.264\nPROGRESS:  0:00:00:00 (1): 0 Seconds\n...\nPROGRESS:  Total Time Elapsed: 14 Seconds"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid job identifier.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid or missing API token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - Nexrender is not licensed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Job not found or no stored render log is available.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error while retrieving the render log.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Render Management"
+        ],
+        "operationId": "getJobLogs"
+      }
+    },
     "/jobs/{id}/cancel": {
       "patch": {
         "summary": "Cancel job",

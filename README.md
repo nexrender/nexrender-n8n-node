@@ -47,6 +47,7 @@ The node exposes the following resources and operations:
   - Create: POST /jobs — create a render job with template, assets, settings, upload + webhook
   - List: GET /jobs — supports filters: minimal, from, limit, from_date, to_date, states, exclude_states, sort, tags
   - Get: GET /jobs/{id} — job details, progress, stats, output URL
+  - Get Logs: GET /jobs/{id}/logs — retrieve the stored plain-text render log
   - Cancel: PATCH /jobs/{id}/cancel — cancel a queued or pending job
   - Cancel Many: POST /jobs/cancel — cancel multiple queued or pending jobs
   - Create Join Job: POST /jobs/join — stitch video assets and nested job outputs
@@ -99,6 +100,10 @@ Credential: “Nexrender API”
 
 - Monitor a job
   - Operation: Job → Get with `jobId`, or use Job → List with filters
+
+- Inspect render logs
+  - Operation: Job → Get Logs with `jobId`
+  - The node returns `{ "jobId": "...", "logs": "..." }` for use by downstream nodes
 
 - Manage fonts
   - Operation: Font → Upload (multipart/form-data with TTF)

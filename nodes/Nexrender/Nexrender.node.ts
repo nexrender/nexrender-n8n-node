@@ -130,6 +130,19 @@ export class Nexrender implements INodeType {
                     continue;
                 }
 
+                if (resource === 'job' && operation === 'getLogs') {
+                    const jobId = this.getNodeParameter('jobId', i) as string;
+                    const logs = await this.helpers.httpRequestWithAuthentication.call(this, 'nexrenderApi', {
+                        method: 'GET',
+                        url: `/jobs/${jobId}/logs`,
+                        baseURL,
+                        headers: { Accept: 'text/plain' },
+                        json: false,
+                    });
+                    results.push({ json: { jobId, logs: String(logs) }, pairedItem: { item: i } });
+                    continue;
+                }
+
                 // Handle all other operations explicitly
                 if (resource === 'job' && operation === 'create') {
                     const bodyParam = this.getNodeParameter('body', i) as unknown;
