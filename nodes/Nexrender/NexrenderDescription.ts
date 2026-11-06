@@ -50,7 +50,7 @@ export const nexrenderOperations: INodeProperties[] = [
             {
                 name: 'Get Upload URL',
                 value: 'getUploadUrl',
-                description: 'Get a fresh upload URL for the template file',
+                description: 'Get a fresh upload URL to upload or replace the template file',
                 action: 'Get template upload URL',
 
             },
@@ -250,6 +250,26 @@ export const nexrenderOperations: INodeProperties[] = [
         ],
         default: 'get',
     },
+    {
+        displayName: 'Operation',
+        name: 'operation',
+        type: 'options',
+        noDataExpression: true,
+        displayOptions: {
+            show: {
+                resource: ['team'],
+            },
+        },
+        options: [
+            {
+                name: 'Get',
+                value: 'get',
+                description: 'Get the team that owns the API token, including its trial allowance',
+                action: 'Get team',
+            },
+        ],
+        default: 'get',
+    },
 ];
 
 const templateFields: INodeProperties[] = [
@@ -272,7 +292,7 @@ const templateFields: INodeProperties[] = [
         name: 'body',
         type: 'json',
         default: '{"type":"aep","displayName":"My Template"}',
-        description: 'Template payload',
+        description: 'Template payload. The display name can be at most 255 characters.',
         displayOptions: {
             show: {
                 resource: ['template'],
@@ -376,8 +396,8 @@ const jobFields: INodeProperties[] = [
         displayName: 'Body',
         name: 'body',
         type: 'json',
-        default: '',
-        description: 'Job creation payload',
+        default: '{"template":{"id":"01ARZ3NDEKTSV4RRFFQ69G5FAV","composition":"Main"},"assets":[]}',
+        description: 'Job creation payload. Point the template at an uploaded template by its ID, or at a template URL with template.src and template.name. settings.type can be video, image, aep or lottie.',
         displayOptions: {
             show: {
                 resource: ['job'],
@@ -403,8 +423,8 @@ const jobFields: INodeProperties[] = [
         displayName: 'Body',
         name: 'body',
         type: 'json',
-        default: '{"assets":[{"type":"video","src":"https://example.com/input.mp4"}]}',
-        description: 'Join job creation payload',
+        default: '{"assets":[{"type":"video","src":"https://example.com/part1.mp4"},{"type":"video","src":"https://example.com/part2.mp4"}]}',
+        description: 'Join job creation payload. A join needs at least two assets.',
         displayOptions: {
             show: {
                 resource: ['job'],
@@ -462,13 +482,44 @@ const batchFields: INodeProperties[] = [
         name: 'body',
         type: 'json',
         default: '{"jobs":[{"template":{"id":"01ARZ3NDEKTSV4RRFFQ69G5FAV","composition":"Main"},"assets":[]}]}',
-        description: 'Batch creation payload',
+        description: 'Batch creation payload with 1 to 1000 jobs. Each job can set an optional batchItemId to identify it when the batch is retried.',
         displayOptions: {
             show: {
                 resource: ['batch'],
                 operation: ['create'],
             },
         },
+    },
+    {
+        displayName: 'Options',
+        name: 'batchOptions',
+        type: 'collection',
+        placeholder: 'Add Option',
+        default: {},
+        displayOptions: {
+            show: {
+                resource: ['batch'],
+                operation: ['create'],
+            },
+        },
+        options: [
+            {
+                displayName: 'Batch ID',
+                name: 'batchId',
+                type: 'string',
+                default: '',
+                placeholder: '01ARZ3NDEKTSV4RRFFQ69G5FAV',
+                description: 'ULID you choose for the batch. Sending the same batch again with this ID creates only the jobs that are missing, so it is safe to retry. Overrides batchId in the body.',
+            },
+            {
+                displayName: 'Max Retries',
+                name: 'maxRetries',
+                type: 'number',
+                typeOptions: { minValue: 0, maxValue: 10 },
+                default: 3,
+                description: 'How many times to retry when the API says the batch was only partly created because of a temporary failure. Retries reuse the batch ID, so no job is created twice. Set to 0 to turn this off.',
+            },
+        ],
     },
 ];
 
@@ -560,6 +611,7 @@ export const nexrenderFields: INodeProperties[] = [
             { name: 'Font', value: 'font' },
             { name: 'Job', value: 'job' },
             { name: 'Secret', value: 'secret' },
+            { name: 'Team', value: 'team' },
             { name: 'Template', value: 'template' },
         ],
         default: 'job',

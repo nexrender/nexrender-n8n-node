@@ -67,6 +67,9 @@ export class Nexrender implements INodeType {
         const parseBodyParameter = (bodyParam: unknown) =>
             typeof bodyParam === 'string' ? JSON.parse(bodyParam) : bodyParam;
 
+        // v2 responses report manually cancelled jobs as `manually_cancelled`
+        const terminalJobStatuses = ['finished', 'error', 'manually_cancelled'];
+
         for (let i = 0; i < items.length; i++) {
             const resource = this.getNodeParameter('resource', i) as string;
             const operation = this.getNodeParameter('operation', i) as string;
@@ -117,7 +120,7 @@ export class Nexrender implements INodeType {
                                 `[Nexrender] item ${i}: polled job id=${jobId} status=${status ?? 'unknown'}`,
                             );
                         } catch {}
-                        if (status === 'finished' || status === 'error') break;
+                        if (status && terminalJobStatuses.includes(status)) break;
 
                         if (Date.now() > deadline) {
                             throw new NodeOperationError(this.getNode(), `Timed out waiting for job ${jobId} after ${timeoutMinutes} minutes`, { itemIndex: i });
@@ -312,16 +315,59 @@ export class Nexrender implements INodeType {
                 if (resource === 'batch') {
                     if (operation === 'create') {
                         const bodyParam = this.getNodeParameter('body', i) as unknown;
-                        const payload = parseBodyParameter(bodyParam);
-                        const resp = await this.helpers.httpRequestWithAuthentication.call(this, 'nexrenderApi', {
-                            method: 'POST',
-                            url: '/batches',
-                            baseURL,
-                            json: true,
-                            body: payload,
-                            headers: { Accept: 'application/json' },
-                        });
-                            results.push({ json: resp, pairedItem: { item: i } });
+                        const payload = { ...parseBodyParameter(bodyParam) };
+                        const options = this.getNodeParameter('batchOptions', i, {}) as { batchId?: string; maxRetries?: number };
+                        if (options.batchId?.trim()) payload.batchId = options.batchId.trim();
+                        const maxRetries = Math.max(0, options.maxRetries ?? 3);
+
+                        let attempt = 0;
+                        // eslint-disable-next-line no-constant-condition
+                        while (true) {
+                            const resp = await this.helpers.httpRequestWithAuthentication.call(this, 'nexrenderApi', {
+                                method: 'POST',
+                                url: '/batches',
+                                baseURL,
+                                json: true,
+                                body: payload,
+                                headers: { Accept: 'application/json' },
+                                returnFullResponse: true,
+                                ignoreHttpStatusErrors: true,
+                            });
+                            const statusCode = resp.statusCode as number;
+                            const respBody: any = typeof resp.body === 'string'
+                                ? (() => { try { return JSON.parse(resp.body); } catch { return { error: resp.body }; } })()
+                                : resp.body;
+
+                            if (statusCode < 400) {
+                                results.push({ json: respBody, pairedItem: { item: i } });
+                                break;
+                            }
+
+                            // BATCH_RETRYABLE: some jobs were created before a temporary failure.
+                            // Retrying with the same batchId creates only the missing jobs.
+                            if (statusCode === 503 && respBody?.errorCode === 'BATCH_RETRYABLE' && respBody?.batchId && attempt < maxRetries) {
+                                payload.batchId = respBody.batchId;
+                                attempt++;
+                                const retryAfter = parseInt(String(resp.headers?.['retry-after'] ?? ''), 10);
+                                const waitSeconds = Number.isFinite(retryAfter) && retryAfter > 0 ? Math.min(retryAfter, 60) : 5;
+                                try {
+                                    (this as any).logger?.debug?.(
+                                        `[Nexrender] item ${i}: batch ${respBody.batchId} retryable, retry ${attempt}/${maxRetries} in ${waitSeconds}s`,
+                                    );
+                                } catch {}
+                                await sleep(waitSeconds * 1000);
+                                continue;
+                            }
+
+                            const details = [respBody?.errorCode, respBody?.batchId && `batch ID ${respBody.batchId}`].filter(Boolean).join(', ');
+                            const message = `HTTP ${statusCode}: ${respBody?.error || respBody?.message || 'Batch creation failed'}${details ? ` (${details})` : ''}`;
+                            if (this.continueOnFail()) {
+                                // Keep the batch details (batchId, jobs created so far) so the workflow can retry with the same batchId
+                                results.push({ json: { ...respBody, error: message, statusCode }, pairedItem: { item: i } });
+                                break;
+                            }
+                            throw new NodeOperationError(this.getNode(), message, { itemIndex: i });
+                        }
                         continue;
                     }
                     const batchId = this.getNodeParameter('batchId', i, '') as string;
@@ -395,6 +441,14 @@ export class Nexrender implements INodeType {
 													throw new NodeOperationError(this.getNode(), error, { itemIndex: i });
 												}
                     }
+                }
+
+                if (resource === 'team' && operation === 'get') {
+                    const resp = await this.helpers.httpRequestWithAuthentication.call(this, 'nexrenderApi', {
+                        method: 'GET', url: '/team', baseURL, json: true, headers: { Accept: 'application/json' },
+                    });
+                    results.push({ json: resp, pairedItem: { item: i } });
+                    continue;
                 }
 
                 if (resource === 'secret') {
