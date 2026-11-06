@@ -42,7 +42,7 @@ export class NexrenderApi implements ICredentialType {
     test: ICredentialTestRequest = {
         request: {
             baseURL: '={{$credentials?.domain}}',
-            url: '/jobs',
+            url: '/team',
             method: 'GET',
         },
     };
